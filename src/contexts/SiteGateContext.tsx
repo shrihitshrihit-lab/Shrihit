@@ -10,8 +10,8 @@ interface SiteGateContextType {
 const SiteGateContext = createContext<SiteGateContextType | undefined>(undefined);
 
 // Change this password to whatever you want
-const SITE_PASSWORD = "Ayushpagalhai";
-const STORAGE_KEY = "shrihit_site_access_v2";
+const SITE_PASSWORD = "shrihit2026";
+const STORAGE_KEY = "shrihit_site_access_v3";
 
 export const SiteGateProvider = ({ children }: { children: ReactNode }) => {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
