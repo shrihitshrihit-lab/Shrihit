@@ -33,7 +33,8 @@ const OrderSuccess = () => {
           Thank you for shopping with श्रीहित SHRIHIT
         </p>
         <p className="font-body text-sm text-muted-foreground mb-8">
-          You'll receive an order confirmation email shortly with tracking details.
+          When your order ships, we'll email and WhatsApp you the courier tracking details.
+          You can also check status anytime in My Account.
         </p>
 
         {/* Order Info */}
