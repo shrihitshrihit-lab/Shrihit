@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Eye, Search, Filter, Package, Clock, CheckCircle, XCircle, Truck, Download, Printer, Bell } from "lucide-react";
+import { Eye, Search, Filter, Package, Clock, CheckCircle, XCircle, Truck, Download, Printer, Bell, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -84,10 +95,14 @@ const statusIcons: Record<string, React.ReactNode> = {
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -163,9 +178,104 @@ const Orders = () => {
     fetchOrders();
   };
 
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = 
+      order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.shipping_address.full_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const allFilteredSelected =
+    filteredOrders.length > 0 && filteredOrders.every((order) => selectedIds.has(order.id));
+  const someFilteredSelected = filteredOrders.some((order) => selectedIds.has(order.id));
+
   const viewOrderDetails = (order: Order) => {
     setSelectedOrder(order);
     setIsDialogOpen(true);
+  };
+
+  const toggleOrderSelection = (orderId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(orderId);
+      else next.delete(orderId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredOrders.map((order) => order.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const logOrderDeletes = async (deletedOrders: Order[]) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || deletedOrders.length === 0) return;
+
+    await supabase.from("activity_logs").insert(
+      deletedOrders.map((order) => ({
+        user_id: user.id,
+        action: "deleted",
+        entity_type: "order",
+        entity_id: order.id,
+        entity_name: order.order_number,
+        old_data: { status: order.status, total: order.total },
+      }))
+    );
+  };
+
+  const deleteOrdersByIds = async (ids: string[]) => {
+    if (ids.length === 0) return;
+
+    setIsDeleting(true);
+    const deletedOrders = orders.filter((order) => ids.includes(order.id));
+
+    const { error } = await supabase.from("orders").delete().in("id", ids);
+
+    setIsDeleting(false);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    await logOrderDeletes(deletedOrders);
+
+    toast({
+      title: "Orders deleted",
+      description:
+        ids.length === 1
+          ? `Order #${deletedOrders[0]?.order_number || ""} removed.`
+          : `${ids.length} orders removed.`,
+    });
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+
+    if (selectedOrder && ids.includes(selectedOrder.id)) {
+      setIsDialogOpen(false);
+      setSelectedOrder(null);
+    }
+
+    setOrderToDelete(null);
+    setBulkDeleteOpen(false);
+    fetchOrders();
+  };
+
+  const handleDeleteSingle = async () => {
+    if (!orderToDelete) return;
+    await deleteOrdersByIds([orderToDelete.id]);
+  };
+
+  const handleDeleteBulk = async () => {
+    await deleteOrdersByIds(Array.from(selectedIds));
   };
 
   const exportToCsv = () => {
@@ -256,14 +366,6 @@ const Orders = () => {
     invoiceWindow.print();
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.shipping_address.full_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   const stats = {
     total: orders.length,
     pending: orders.filter(o => o.status === "pending").length,
@@ -275,7 +377,7 @@ const Orders = () => {
   return (
     <div className="p-6 lg:p-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-8 flex items-start justify-between gap-4">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
             <h1 className="font-display text-3xl font-semibold text-foreground mb-2">Orders</h1>
             <p className="text-muted-foreground flex items-center gap-2">
@@ -285,10 +387,23 @@ const Orders = () => {
               </span>
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={exportToCsv} disabled={filteredOrders.length === 0}>
-            <Download size={16} className="mr-2" />
-            Export CSV
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+                disabled={isDeleting}
+              >
+                <Trash2 size={16} className="mr-2" />
+                Delete selected ({selectedIds.size})
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={exportToCsv} disabled={filteredOrders.length === 0}>
+              <Download size={16} className="mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -348,6 +463,13 @@ const Orders = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                      onCheckedChange={(checked) => toggleSelectAll(checked === true)}
+                      aria-label="Select all orders"
+                    />
+                  </TableHead>
                   <TableHead>Order</TableHead>
                   <TableHead className="hidden md:table-cell">Customer</TableHead>
                   <TableHead>Status</TableHead>
@@ -359,7 +481,14 @@ const Orders = () => {
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
+                  <TableRow key={order.id} data-state={selectedIds.has(order.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(order.id)}
+                        onCheckedChange={(checked) => toggleOrderSelection(order.id, checked === true)}
+                        aria-label={`Select order ${order.order_number}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">#{order.order_number}</TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div>
@@ -397,9 +526,20 @@ const Orders = () => {
                       {format(new Date(order.created_at), "dd MMM yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => viewOrderDetails(order)}>
-                        <Eye size={16} />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => viewOrderDetails(order)}>
+                          <Eye size={16} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setOrderToDelete(order)}
+                          disabled={isDeleting}
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -412,14 +552,27 @@ const Orders = () => {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <div className="flex items-center justify-between gap-4 pr-8">
+              <div className="flex flex-wrap items-center justify-between gap-4 pr-8">
                 <DialogTitle className="font-display">
                   Order #{selectedOrder?.order_number}
                 </DialogTitle>
-                <Button variant="outline" size="sm" onClick={printInvoice}>
-                  <Printer size={16} className="mr-2" />
-                  Print Invoice
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={printInvoice}>
+                    <Printer size={16} className="mr-2" />
+                    Print Invoice
+                  </Button>
+                  {selectedOrder && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setOrderToDelete(selectedOrder)}
+                      disabled={isDeleting}
+                    >
+                      <Trash2 size={16} className="mr-2" />
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </div>
             </DialogHeader>
             {selectedOrder && (
@@ -523,6 +676,52 @@ const Orders = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Single order delete confirmation */}
+        <AlertDialog open={!!orderToDelete} onOpenChange={(open) => !open && setOrderToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete order</AlertDialogTitle>
+              <AlertDialogDescription>
+                Delete order #{orderToDelete?.order_number}? This permanently removes the order
+                and its line items. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteSingle}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? "Deleting…" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Bulk delete confirmation */}
+        <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {selectedIds.size} orders</AlertDialogTitle>
+              <AlertDialogDescription>
+                Permanently delete {selectedIds.size} selected order
+                {selectedIds.size === 1 ? "" : "s"} and their line items? This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteBulk}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? "Deleting…" : `Delete ${selectedIds.size}`}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </div>
   );
