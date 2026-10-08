@@ -117,9 +117,11 @@ const Checkout = () => {
       total,
       coupon_code: coupon.applied?.code ?? null,
       discount_amount: discount,
+      customer_email: formData.email,
       shipping_address: {
         full_name: `${formData.firstName} ${formData.lastName}`,
         phone: formData.phone,
+        email: formData.email,
         address_line1: formData.address,
         city: formData.city,
         state: formData.state,

@@ -12,9 +12,15 @@ export interface Order {
   subtotal: number;
   shipping_cost: number;
   total: number;
+  courier_name?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
+  shipped_at?: string | null;
+  customer_email?: string | null;
   shipping_address: {
     full_name: string;
     phone: string;
+    email?: string;
     address_line1: string;
     address_line2?: string;
     city: string;
@@ -44,6 +50,9 @@ export interface CreateOrderData {
   subtotal: number;
   shipping_cost: number;
   total: number;
+  coupon_code?: string | null;
+  discount_amount?: number;
+  customer_email?: string | null;
   shipping_address: Order['shipping_address'];
   items: {
     product_id: string;
@@ -129,6 +138,9 @@ export const useCreateOrder = () => {
           subtotal: orderData.subtotal,
           shipping_cost: orderData.shipping_cost,
           total: orderData.total,
+          coupon_code: orderData.coupon_code ?? null,
+          discount_amount: orderData.discount_amount ?? 0,
+          customer_email: orderData.customer_email ?? orderData.shipping_address.email ?? null,
           shipping_address: orderData.shipping_address,
         })
         .select()

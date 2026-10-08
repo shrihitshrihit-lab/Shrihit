@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Eye, Search, Filter, Package, Clock, CheckCircle, XCircle, Truck, Download, Printer, Bell, Trash2 } from "lucide-react";
+import { Eye, Search, Filter, Package, Clock, CheckCircle, XCircle, Truck, Download, Printer, Bell, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -43,6 +44,7 @@ import { format } from "date-fns";
 interface ShippingAddress {
   full_name: string;
   phone: string;
+  email?: string;
   address_line1: string;
   address_line2?: string;
   city: string;
@@ -70,10 +72,22 @@ interface Order {
   subtotal: number;
   shipping_cost: number;
   total: number;
+  courier_name?: string | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
+  shipped_at?: string | null;
+  customer_email?: string | null;
   shipping_address: ShippingAddress;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];
+}
+
+interface ShipFormState {
+  courier_name: string;
+  tracking_number: string;
+  tracking_url: string;
+  notify_customer: boolean;
 }
 
 const statusColors: Record<string, string> = {
@@ -103,6 +117,15 @@ const Orders = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [shipOrder, setShipOrder] = useState<Order | null>(null);
+  const [isShipping, setIsShipping] = useState(false);
+  const [shipForm, setShipForm] = useState<ShipFormState>({
+    courier_name: "",
+    tracking_number: "",
+    tracking_url: "",
+    notify_customer: true,
+  });
+  const [whatsappFallbackUrl, setWhatsappFallbackUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -150,18 +173,45 @@ const Orders = () => {
     setIsLoading(false);
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const openShipDialog = (order: Order) => {
+    setShipOrder(order);
+    setWhatsappFallbackUrl(null);
+    setShipForm({
+      courier_name: order.courier_name || "",
+      tracking_number: order.tracking_number || "",
+      tracking_url: order.tracking_url || "",
+      notify_customer: true,
+    });
+  };
+
+  const handleStatusChange = (order: Order, newStatus: string) => {
+    if (newStatus === "shipped") {
+      openShipDialog(order);
+      return;
+    }
+    void updateOrderStatus(order.id, newStatus);
+  };
+
+  const updateOrderStatus = async (
+    orderId: string,
+    newStatus: string,
+    extras?: Partial<{
+      courier_name: string;
+      tracking_number: string;
+      tracking_url: string | null;
+      shipped_at: string;
+    }>,
+  ) => {
     const { error } = await supabase
       .from("orders")
-      .update({ status: newStatus })
+      .update({ status: newStatus, ...extras })
       .eq("id", orderId);
 
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
-      return;
+      return false;
     }
 
-    // Log activity
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("activity_logs").insert({
@@ -170,12 +220,102 @@ const Orders = () => {
         entity_type: "order",
         entity_id: orderId,
         entity_name: orders.find(o => o.id === orderId)?.order_number,
-        new_data: { status: newStatus },
+        new_data: { status: newStatus, ...extras },
       });
     }
 
-    toast({ title: "Success", description: "Order status updated" });
-    fetchOrders();
+    return true;
+  };
+
+  const notifyOrderShipped = async (orderId: string) => {
+    const { data, error } = await supabase.functions.invoke<{
+      ok?: boolean;
+      email?: { sent: boolean; error?: string; to?: string };
+      whatsapp?: { sent: boolean; error?: string; fallback_url?: string | null };
+      error?: string;
+    }>("notify-order-shipped", {
+      body: { order_id: orderId },
+    });
+
+    if (error) {
+      throw new Error(error.message || "Notification failed");
+    }
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+    return data;
+  };
+
+  const confirmShipOrder = async () => {
+    if (!shipOrder) return;
+
+    const courier = shipForm.courier_name.trim();
+    const tracking = shipForm.tracking_number.trim();
+    if (!courier || !tracking) {
+      toast({
+        title: "Tracking required",
+        description: "Enter courier name and tracking / AWB number before shipping.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsShipping(true);
+    setWhatsappFallbackUrl(null);
+
+    const extras = {
+      courier_name: courier,
+      tracking_number: tracking,
+      tracking_url: shipForm.tracking_url.trim() || null,
+      shipped_at: shipOrder.shipped_at || new Date().toISOString(),
+    };
+
+    const ok = await updateOrderStatus(shipOrder.id, "shipped", extras);
+    if (!ok) {
+      setIsShipping(false);
+      return;
+    }
+
+    let notifySummary = "Order marked as shipped.";
+    let fallbackUrl: string | null = null;
+    let whatsappSent = false;
+
+    if (shipForm.notify_customer) {
+      try {
+        const notify = await notifyOrderShipped(shipOrder.id);
+        const emailOk = !!notify?.email?.sent;
+        whatsappSent = !!notify?.whatsapp?.sent;
+        fallbackUrl = notify?.whatsapp?.fallback_url || null;
+
+        const parts: string[] = [];
+        if (emailOk) parts.push("email sent");
+        else if (notify?.email?.error) parts.push(`email: ${notify.email.error}`);
+        if (whatsappSent) parts.push("WhatsApp sent");
+        else if (fallbackUrl) parts.push("open WhatsApp link to message customer");
+        else if (notify?.whatsapp?.error) parts.push(`WhatsApp: ${notify.whatsapp.error}`);
+
+        notifySummary = parts.length
+          ? `Shipped. ${parts.join(" · ")}`
+          : "Shipped. Customer notification could not be completed.";
+      } catch (error) {
+        notifySummary =
+          error instanceof Error
+            ? `Shipped, but notify failed: ${error.message}`
+            : "Shipped, but customer notification failed.";
+      }
+    }
+
+    setIsShipping(false);
+    toast({ title: "Order shipped", description: notifySummary });
+    await fetchOrders();
+
+    // Keep dialog open if admin still needs to tap the WhatsApp fallback link
+    if (shipForm.notify_customer && fallbackUrl && !whatsappSent) {
+      setWhatsappFallbackUrl(fallbackUrl);
+      return;
+    }
+
+    setShipOrder(null);
   };
 
   const filteredOrders = orders.filter(order => {
@@ -499,7 +639,7 @@ const Orders = () => {
                     <TableCell>
                       <Select
                         value={order.status}
-                        onValueChange={(value) => updateOrderStatus(order.id, value)}
+                        onValueChange={(value) => handleStatusChange(order, value)}
                       >
                         <SelectTrigger className={`w-32 h-8 text-xs ${statusColors[order.status]}`}>
                           <div className="flex items-center gap-1">
@@ -620,6 +760,46 @@ const Orders = () => {
                   </div>
                 )}
 
+                {/* Tracking */}
+                {(selectedOrder.courier_name || selectedOrder.tracking_number) && (
+                  <div className="bg-muted/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <h3 className="font-medium">Shipment Tracking</h3>
+                      {selectedOrder.status !== "shipped" && (
+                        <Button variant="outline" size="sm" onClick={() => openShipDialog(selectedOrder)}>
+                          Update tracking
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-sm"><span className="text-muted-foreground">Courier:</span> {selectedOrder.courier_name || "—"}</p>
+                    <p className="text-sm"><span className="text-muted-foreground">AWB / Tracking:</span> {selectedOrder.tracking_number || "—"}</p>
+                    {selectedOrder.tracking_url && (
+                      <a
+                        href={selectedOrder.tracking_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-1"
+                      >
+                        Open tracking link <ExternalLink size={14} />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {selectedOrder.status !== "shipped" && !selectedOrder.tracking_number && (
+                  <Button variant="outline" onClick={() => openShipDialog(selectedOrder)}>
+                    <Truck size={16} className="mr-2" />
+                    Mark as shipped with tracking
+                  </Button>
+                )}
+
+                {selectedOrder.status === "shipped" && (
+                  <Button variant="outline" onClick={() => openShipDialog(selectedOrder)}>
+                    <Truck size={16} className="mr-2" />
+                    Update tracking / re-notify
+                  </Button>
+                )}
+
                 {/* Shipping Address */}
                 <div className="bg-muted/50 rounded-lg p-4">
                   <h3 className="font-medium mb-2">Shipping Address</h3>
@@ -632,6 +812,11 @@ const Orders = () => {
                     {selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.state} - {selectedOrder.shipping_address.pincode}
                   </p>
                   <p className="text-muted-foreground">Phone: {selectedOrder.shipping_address.phone}</p>
+                  {(selectedOrder.customer_email || selectedOrder.shipping_address.email) && (
+                    <p className="text-muted-foreground">
+                      Email: {selectedOrder.customer_email || selectedOrder.shipping_address.email}
+                    </p>
+                  )}
                 </div>
 
                 {/* Order Items */}
@@ -722,6 +907,98 @@ const Orders = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Ship + tracking + notify */}
+        <Dialog
+          open={!!shipOrder}
+          onOpenChange={(open) => {
+            if (!open && !isShipping) {
+              setShipOrder(null);
+              setWhatsappFallbackUrl(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-display">
+                Ship order #{shipOrder?.order_number}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Add courier details. We will email and WhatsApp the customer when you confirm
+                (if notification secrets are configured).
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="courier_name">Courier name *</Label>
+                <Input
+                  id="courier_name"
+                  placeholder="Delhivery, Bluedart, DTDC…"
+                  value={shipForm.courier_name}
+                  onChange={(e) => setShipForm((prev) => ({ ...prev, courier_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tracking_number">Tracking / AWB *</Label>
+                <Input
+                  id="tracking_number"
+                  placeholder="Tracking number"
+                  value={shipForm.tracking_number}
+                  onChange={(e) => setShipForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tracking_url">Tracking link (optional)</Label>
+                <Input
+                  id="tracking_url"
+                  placeholder="https://…"
+                  value={shipForm.tracking_url}
+                  onChange={(e) => setShipForm((prev) => ({ ...prev, tracking_url: e.target.value }))}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={shipForm.notify_customer}
+                  onCheckedChange={(checked) =>
+                    setShipForm((prev) => ({ ...prev, notify_customer: checked === true }))
+                  }
+                />
+                Notify customer by email + WhatsApp
+              </label>
+
+              {whatsappFallbackUrl && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Automatic WhatsApp API is not configured (or failed). Open this pre-filled chat to message the customer:
+                  </p>
+                  <Button asChild variant="outline" className="w-full">
+                    <a href={whatsappFallbackUrl} target="_blank" rel="noopener noreferrer">
+                      Open WhatsApp message
+                    </a>
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  disabled={isShipping}
+                  onClick={() => {
+                    setShipOrder(null);
+                    setWhatsappFallbackUrl(null);
+                  }}
+                >
+                  {whatsappFallbackUrl ? "Done" : "Cancel"}
+                </Button>
+                {!whatsappFallbackUrl && (
+                  <Button onClick={confirmShipOrder} disabled={isShipping}>
+                    {isShipping ? "Saving…" : "Ship & notify"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     </div>
   );

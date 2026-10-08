@@ -242,6 +242,11 @@ export type Database = {
           total: number
           updated_at: string
           user_id: string
+          courier_name: string | null
+          tracking_number: string | null
+          tracking_url: string | null
+          shipped_at: string | null
+          customer_email: string | null
         }
         Insert: {
           created_at?: string
@@ -260,6 +265,11 @@ export type Database = {
           total: number
           updated_at?: string
           user_id: string
+          courier_name?: string | null
+          tracking_number?: string | null
+          tracking_url?: string | null
+          shipped_at?: string | null
+          customer_email?: string | null
         }
         Update: {
           created_at?: string
@@ -278,6 +288,11 @@ export type Database = {
           total?: number
           updated_at?: string
           user_id?: string
+          courier_name?: string | null
+          tracking_number?: string | null
+          tracking_url?: string | null
+          shipped_at?: string | null
+          customer_email?: string | null
         }
         Relationships: []
       }

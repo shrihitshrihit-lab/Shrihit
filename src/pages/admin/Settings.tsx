@@ -234,6 +234,27 @@ const Settings = () => {
             </div>
           </div>
 
+          <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Phone size={20} className="text-green-700" />
+              </div>
+              <h2 className="text-xl font-semibold">Shipping notifications</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              When you mark an order as <strong>Shipped</strong>, customers get courier + AWB by email and WhatsApp.
+              Configure these Supabase Edge Function secrets for automatic delivery:
+            </p>
+            <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1 mb-3">
+              <li><code className="text-xs">RESEND_API_KEY</code> and <code className="text-xs">RESEND_FROM_EMAIL</code> (email)</li>
+              <li><code className="text-xs">WHATSAPP_ACCESS_TOKEN</code>, <code className="text-xs">WHATSAPP_PHONE_NUMBER_ID</code>, and approved template <code className="text-xs">WHATSAPP_SHIPPED_TEMPLATE</code> (WhatsApp Cloud API)</li>
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              If WhatsApp API secrets are missing, the Orders page still gives you a one-click WhatsApp chat link with the tracking message pre-filled.
+              Store email/phone above are used as your public contact details.
+            </p>
+          </div>
+
           <Button onClick={handleSaveSettings} className="w-full" disabled={isSaving}>
             {isSaving ? (
               <Loader2 className="animate-spin mr-2" size={18} />

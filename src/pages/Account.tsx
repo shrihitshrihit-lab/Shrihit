@@ -168,6 +168,27 @@ const Account = () => {
                           <p>{order.shipping_address.address_line1}</p>
                           <p>{order.shipping_address.city}, {order.shipping_address.state} - {order.shipping_address.pincode}</p>
                         </div>
+                        {(order.courier_name || order.tracking_number) && (
+                          <div className="mt-3 rounded-md bg-muted/50 p-3 text-sm">
+                            <p className="font-medium text-foreground mb-1">Shipment tracking</p>
+                            {order.courier_name && (
+                              <p className="text-muted-foreground">Courier: {order.courier_name}</p>
+                            )}
+                            {order.tracking_number && (
+                              <p className="text-muted-foreground">AWB / Tracking: {order.tracking_number}</p>
+                            )}
+                            {order.tracking_url && (
+                              <a
+                                href={order.tracking_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline inline-block mt-1"
+                              >
+                                Track package
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
