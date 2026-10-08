@@ -184,12 +184,24 @@ const Orders = () => {
     });
   };
 
+  const patchOrderLocally = (
+    orderId: string,
+    patch: Partial<Order>,
+  ) => {
+    setOrders((prev) =>
+      prev.map((order) => (order.id === orderId ? { ...order, ...patch } : order)),
+    );
+    setSelectedOrder((prev) =>
+      prev && prev.id === orderId ? { ...prev, ...patch } : prev,
+    );
+  };
+
   const handleStatusChange = (order: Order, newStatus: string) => {
     if (newStatus === "shipped") {
       openShipDialog(order);
       return;
     }
-    void updateOrderStatus(order.id, newStatus);
+    void updateOrderStatus(order.id, newStatus, undefined, { toastSuccess: true });
   };
 
   const updateOrderStatus = async (
@@ -201,13 +213,29 @@ const Orders = () => {
       tracking_url: string | null;
       shipped_at: string;
     }>,
+    options?: { toastSuccess?: boolean },
   ) => {
+    const previous = orders.find((order) => order.id === orderId);
+    const localPatch: Partial<Order> = {
+      status: newStatus,
+      ...(extras?.courier_name !== undefined ? { courier_name: extras.courier_name } : {}),
+      ...(extras?.tracking_number !== undefined ? { tracking_number: extras.tracking_number } : {}),
+      ...(extras?.tracking_url !== undefined ? { tracking_url: extras.tracking_url } : {}),
+      ...(extras?.shipped_at !== undefined ? { shipped_at: extras.shipped_at } : {}),
+    };
+
+    // Update UI immediately so the dropdown doesn't wait for a refresh
+    patchOrderLocally(orderId, localPatch);
+
     const { error } = await supabase
       .from("orders")
       .update({ status: newStatus, ...extras })
       .eq("id", orderId);
 
     if (error) {
+      if (previous) {
+        patchOrderLocally(orderId, previous);
+      }
       toast({ title: "Error", description: error.message, variant: "destructive" });
       return false;
     }
@@ -219,9 +247,13 @@ const Orders = () => {
         action: "updated",
         entity_type: "order",
         entity_id: orderId,
-        entity_name: orders.find(o => o.id === orderId)?.order_number,
+        entity_name: previous?.order_number,
         new_data: { status: newStatus, ...extras },
       });
+    }
+
+    if (options?.toastSuccess) {
+      toast({ title: "Success", description: "Order status updated" });
     }
 
     return true;
