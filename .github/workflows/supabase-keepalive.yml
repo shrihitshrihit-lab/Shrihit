@@ -1,0 +1,39 @@
+# Keeps the free-tier Supabase project from pausing due to inactivity.
+# Free projects pause after ~7 days with no API activity.
+# Runs twice weekly (safer than once/week because GitHub cron can delay).
+#
+# The anon key is a public client key (already shipped in the web app).
+
+name: Supabase keep-alive
+
+on:
+  schedule:
+    # Mondays and Thursdays 09:00 UTC (2:30 PM IST)
+    - cron: "0 9 * * 1,4"
+  workflow_dispatch:
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: https://banxxrbvjigmuhdxlxbx.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhbnh4cmJ2amlnbXVoZHhseGJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2MDM1NzMsImV4cCI6MjA5OTE3OTU3M30.XD-NGtxL8XblloQ0xHAckwwyqPIz3B58uvLiMmsnQS0
+        run: |
+          set -euo pipefail
+          echo "Pinging $SUPABASE_URL ..."
+          code=$(curl -sS -o /tmp/keepalive-body.json -w "%{http_code}" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Accept: application/json" \
+            "$SUPABASE_URL/rest/v1/store_settings?select=id&limit=1")
+          echo "HTTP $code"
+          cat /tmp/keepalive-body.json || true
+          echo
+          if [ "$code" != "200" ] && [ "$code" != "206" ]; then
+            echo "Keep-alive ping failed"
+            exit 1
+          fi
+          echo "Keep-alive OK"
