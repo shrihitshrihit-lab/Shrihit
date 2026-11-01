@@ -1,10 +1,10 @@
 /**
  * Keep the free-tier Supabase project active.
  * Called by Vercel Cron (and can also be hit by any uptime monitor).
- * Does not depend on GitHub repo activity.
+ * ESM export required because package.json has "type": "module".
  */
-module.exports = async function handler(req, res) {
-  // Allow GET (cron / uptime) and HEAD
+
+export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.statusCode = 405;
     res.setHeader("Allow", "GET, HEAD");
@@ -71,4 +71,4 @@ module.exports = async function handler(req, res) {
       }),
     );
   }
-};
+}
