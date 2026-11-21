@@ -27,6 +27,37 @@ interface OrderRow {
   total: number;
 }
 
+const STATUS_COPY: Record<
+  string,
+  { subjectLabel: string; headline: string; body: string }
+> = {
+  pending: {
+    subjectLabel: "received",
+    headline: "We received your order",
+    body: "Your order is pending confirmation. We will update you as it progresses.",
+  },
+  processing: {
+    subjectLabel: "is being processed",
+    headline: "Your order is being processed",
+    body: "We are preparing your order. You will get another update when it ships.",
+  },
+  shipped: {
+    subjectLabel: "shipped",
+    headline: "Your order has been shipped",
+    body: "Your package is on the way.",
+  },
+  delivered: {
+    subjectLabel: "delivered",
+    headline: "Your order has been delivered",
+    body: "We hope you love your purchase. Thank you for shopping with us.",
+  },
+  cancelled: {
+    subjectLabel: "cancelled",
+    headline: "Your order has been cancelled",
+    body: "This order was cancelled. If you did not request this or have questions, reply to this email.",
+  },
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -41,15 +72,39 @@ const normalizePhone = (raw: string | null | undefined): string | null => {
   return null;
 };
 
-const buildTrackingMessage = (order: OrderRow, storeName: string) => {
-  const courier = order.courier_name || "our courier partner";
-  const tracking = order.tracking_number || "will be shared shortly";
-  const linkLine = order.tracking_url ? `\nTrack here: ${order.tracking_url}` : "";
+const statusLabel = (status: string) =>
+  status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+const buildStatusMessage = (order: OrderRow, storeName: string) => {
+  const copy = STATUS_COPY[order.status];
+  const name = order.shipping_address?.full_name
+    ? ` ${order.shipping_address.full_name}`
+    : "";
+  const headline = copy?.headline || `Your order status is now ${statusLabel(order.status)}`;
+  const body =
+    copy?.body ||
+    `Your order status has been updated to ${statusLabel(order.status)}.`;
+
+  let trackingBlock = "";
+  if (order.status === "shipped") {
+    const courier = order.courier_name || "our courier partner";
+    const tracking = order.tracking_number || "will be shared shortly";
+    const linkLine = order.tracking_url ? `\nTrack here: ${order.tracking_url}` : "";
+    trackingBlock =
+      `\nShipped via ${courier}.\nTracking / AWB: ${tracking}${linkLine}\n`;
+  } else if (order.tracking_number) {
+    const linkLine = order.tracking_url ? `\nTrack here: ${order.tracking_url}` : "";
+    trackingBlock =
+      `\nCourier: ${order.courier_name || "—"}\nTracking / AWB: ${order.tracking_number}${linkLine}\n`;
+  }
+
   return (
-    `Namaste${order.shipping_address?.full_name ? ` ${order.shipping_address.full_name}` : ""}!\n\n` +
-    `Your ${storeName} order #${order.order_number} has been shipped via ${courier}.\n` +
-    `Tracking / AWB: ${tracking}${linkLine}\n\n` +
-    `Thank you for shopping with ${storeName}.`
+    `Namaste${name}!\n\n` +
+    `${headline}\n` +
+    `Order #${order.order_number} — status: ${statusLabel(order.status)}.\n` +
+    `${body}\n` +
+    trackingBlock +
+    `\nThank you for shopping with ${storeName}.`
   );
 };
 
@@ -196,9 +251,13 @@ Deno.serve(async (req) => {
       return json({ error: "Order not found." }, 404);
     }
 
-    if (!order.tracking_number || !order.courier_name) {
+    // Tracking is required only when notifying a shipped order
+    if (
+      order.status === "shipped" &&
+      (!order.tracking_number || !order.courier_name)
+    ) {
       return json(
-        { error: "courier_name and tracking_number are required before notifying." },
+        { error: "courier_name and tracking_number are required before notifying a shipped order." },
         400,
       );
     }
@@ -256,7 +315,7 @@ Deno.serve(async (req) => {
     const storeName = settingsRows?.[0]?.store_name || "Shrihit";
     const storeEmail = settingsRows?.[0]?.email || "support@shrihit.com";
 
-    const text = buildTrackingMessage(order, storeName);
+    const text = buildStatusMessage(order, storeName);
     const whatsappUrl = phone
       ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
       : null;
@@ -279,20 +338,33 @@ Deno.serve(async (req) => {
       Deno.env.get("RESEND_FROM_EMAIL")?.trim() ||
       `${storeName} <${storeEmail}>`;
 
+    const copy = STATUS_COPY[order.status];
+    const subjectLabel = copy?.subjectLabel || `updated to ${statusLabel(order.status)}`;
+    const headline = copy?.headline || `Your order status is now ${statusLabel(order.status)}`;
+    const bodyCopy =
+      copy?.body ||
+      `Your order status has been updated to ${statusLabel(order.status)}.`;
+
     if (email && resendKey) {
       try {
-        const subject = `${storeName}: Order #${order.order_number} shipped`;
-        const html = `
-          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#222">
-            <h2 style="margin-bottom:8px">${storeName}</h2>
-            <p>Your order <strong>#${order.order_number}</strong> has been shipped.</p>
-            <p><strong>Courier:</strong> ${order.courier_name}<br/>
-            <strong>Tracking / AWB:</strong> ${order.tracking_number}</p>
+        const subject = `${storeName}: Order #${order.order_number} ${subjectLabel}`;
+        const trackingHtml =
+          order.status === "shipped" || order.tracking_number
+            ? `<p><strong>Courier:</strong> ${order.courier_name || "—"}<br/>
+            <strong>Tracking / AWB:</strong> ${order.tracking_number || "—"}</p>
             ${
               order.tracking_url
                 ? `<p><a href="${order.tracking_url}">Track your shipment</a></p>`
                 : ""
-            }
+            }`
+            : "";
+        const html = `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#222">
+            <h2 style="margin-bottom:8px">${storeName}</h2>
+            <p>${headline}</p>
+            <p>Order <strong>#${order.order_number}</strong> is now <strong>${statusLabel(order.status)}</strong>.</p>
+            <p>${bodyCopy}</p>
+            ${trackingHtml}
             <p style="color:#666;font-size:13px">If you have questions, reply to this email or WhatsApp us.</p>
           </div>
         `;
@@ -322,13 +394,14 @@ Deno.serve(async (req) => {
       };
     }
 
+    // WhatsApp Cloud template is shipped-specific; other statuses get fallback URL only
     const waToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN")?.trim();
     const waPhoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID")?.trim();
     const waTemplate =
       Deno.env.get("WHATSAPP_SHIPPED_TEMPLATE")?.trim() || "order_shipped";
     const waLang = Deno.env.get("WHATSAPP_TEMPLATE_LANG")?.trim() || "en";
 
-    if (phone && waToken && waPhoneId) {
+    if (order.status === "shipped" && phone && waToken && waPhoneId) {
       try {
         await sendWhatsAppCloud({
           token: waToken,
@@ -352,6 +425,15 @@ Deno.serve(async (req) => {
           error: error instanceof Error ? error.message : "WhatsApp send failed",
         };
       }
+    } else if (order.status !== "shipped") {
+      result.whatsapp = {
+        sent: false,
+        to: phone || undefined,
+        fallback_url: whatsappUrl,
+        error: phone
+          ? "WhatsApp Cloud templates are only used for shipped orders. Use fallback_url if needed."
+          : "No customer phone on this order.",
+      };
     } else if (!phone) {
       result.whatsapp = {
         sent: false,
@@ -371,6 +453,7 @@ Deno.serve(async (req) => {
     return json({
       ok: result.email.sent || result.whatsapp.sent || !!result.whatsapp.fallback_url,
       order_number: order.order_number,
+      status: order.status,
       ...result,
     });
   } catch (error) {

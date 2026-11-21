@@ -235,7 +235,10 @@ const Orders = () => {
       openShipDialog(order);
       return;
     }
-    void updateOrderStatus(order.id, newStatus, undefined, { toastSuccess: true });
+    void updateOrderStatus(order.id, newStatus, undefined, {
+      toastSuccess: true,
+      notifyCustomer: true,
+    });
   };
 
   const updateOrderStatus = async (
@@ -247,7 +250,7 @@ const Orders = () => {
       tracking_url: string | null;
       shipped_at: string;
     }>,
-    options?: { toastSuccess?: boolean },
+    options?: { toastSuccess?: boolean; notifyCustomer?: boolean },
   ) => {
     const previous = orders.find((order) => order.id === orderId);
     const localPatch: Partial<Order> = {
@@ -286,16 +289,41 @@ const Orders = () => {
       });
     }
 
+    let notifyNote: string | null = null;
+    if (options?.notifyCustomer) {
+      try {
+        const notify = await notifyOrderUpdate(orderId);
+        if (notify?.email?.sent) {
+          notifyNote = "Customer emailed.";
+        } else if (notify?.email?.error) {
+          notifyNote = `Email not sent: ${notify.email.error}`;
+        } else {
+          notifyNote = "Customer email could not be completed.";
+        }
+      } catch (notifyError) {
+        notifyNote =
+          notifyError instanceof Error
+            ? `Email not sent: ${notifyError.message}`
+            : "Customer email could not be completed.";
+      }
+    }
+
     if (options?.toastSuccess) {
-      toast({ title: "Success", description: "Order status updated" });
+      toast({
+        title: "Success",
+        description: notifyNote
+          ? `Order status updated. ${notifyNote}`
+          : "Order status updated",
+      });
     }
 
     return true;
   };
 
-  const notifyOrderShipped = async (orderId: string) => {
+  const notifyOrderUpdate = async (orderId: string) => {
     const { data, error } = await supabase.functions.invoke<{
       ok?: boolean;
+      status?: string;
       email?: { sent: boolean; error?: string; to?: string };
       whatsapp?: { sent: boolean; error?: string; fallback_url?: string | null };
       error?: string;
@@ -348,7 +376,7 @@ const Orders = () => {
 
     if (shipForm.notify_customer) {
       try {
-        const notify = await notifyOrderShipped(shipOrder.id);
+        const notify = await notifyOrderUpdate(shipOrder.id);
         const emailOk = !!notify?.email?.sent;
         whatsappSent = !!notify?.whatsapp?.sent;
         fallbackUrl = notify?.whatsapp?.fallback_url || null;
