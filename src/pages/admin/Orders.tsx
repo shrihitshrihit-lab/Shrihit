@@ -84,11 +84,35 @@ interface Order {
 }
 
 interface ShipFormState {
-  courier_name: string;
+  courier_option: string;
+  courier_custom: string;
   tracking_number: string;
   tracking_url: string;
   notify_customer: boolean;
 }
+
+const COURIER_OPTIONS = [
+  "Delhivery",
+  "BlueDart",
+  "DTDC",
+  "Post Office",
+  "India Post",
+  "Ecom Express",
+  "Shiprocket",
+  "Xpressbees",
+  "Other",
+] as const;
+
+const OTHER_COURIER = "Other";
+
+const resolveCourierOption = (courierName: string | null | undefined) => {
+  const name = (courierName || "").trim();
+  if (!name) return { courier_option: "", courier_custom: "" };
+  if ((COURIER_OPTIONS as readonly string[]).includes(name) && name !== OTHER_COURIER) {
+    return { courier_option: name, courier_custom: "" };
+  }
+  return { courier_option: OTHER_COURIER, courier_custom: name };
+};
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -120,7 +144,8 @@ const Orders = () => {
   const [shipOrder, setShipOrder] = useState<Order | null>(null);
   const [isShipping, setIsShipping] = useState(false);
   const [shipForm, setShipForm] = useState<ShipFormState>({
-    courier_name: "",
+    courier_option: "",
+    courier_custom: "",
     tracking_number: "",
     tracking_url: "",
     notify_customer: true,
@@ -176,12 +201,21 @@ const Orders = () => {
   const openShipDialog = (order: Order) => {
     setShipOrder(order);
     setWhatsappFallbackUrl(null);
+    const courier = resolveCourierOption(order.courier_name);
     setShipForm({
-      courier_name: order.courier_name || "",
+      courier_option: courier.courier_option,
+      courier_custom: courier.courier_custom,
       tracking_number: order.tracking_number || "",
       tracking_url: order.tracking_url || "",
       notify_customer: true,
     });
+  };
+
+  const selectedCourierName = () => {
+    if (shipForm.courier_option === OTHER_COURIER) {
+      return shipForm.courier_custom.trim();
+    }
+    return shipForm.courier_option.trim();
   };
 
   const patchOrderLocally = (
@@ -281,12 +315,12 @@ const Orders = () => {
   const confirmShipOrder = async () => {
     if (!shipOrder) return;
 
-    const courier = shipForm.courier_name.trim();
+    const courier = selectedCourierName();
     const tracking = shipForm.tracking_number.trim();
     if (!courier || !tracking) {
       toast({
         title: "Tracking required",
-        description: "Enter courier name and tracking / AWB number before shipping.",
+        description: "Select a courier and enter tracking / AWB number before shipping.",
         variant: "destructive",
       });
       return;
@@ -962,13 +996,37 @@ const Orders = () => {
                 (if notification secrets are configured).
               </p>
               <div className="space-y-2">
-                <Label htmlFor="courier_name">Courier name *</Label>
-                <Input
-                  id="courier_name"
-                  placeholder="Delhivery, Bluedart, DTDC…"
-                  value={shipForm.courier_name}
-                  onChange={(e) => setShipForm((prev) => ({ ...prev, courier_name: e.target.value }))}
-                />
+                <Label htmlFor="courier_name">Courier *</Label>
+                <Select
+                  value={shipForm.courier_option || undefined}
+                  onValueChange={(value) =>
+                    setShipForm((prev) => ({
+                      ...prev,
+                      courier_option: value,
+                      courier_custom: value === OTHER_COURIER ? prev.courier_custom : "",
+                    }))
+                  }
+                >
+                  <SelectTrigger id="courier_name">
+                    <SelectValue placeholder="Select courier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COURIER_OPTIONS.map((courier) => (
+                      <SelectItem key={courier} value={courier}>
+                        {courier}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {shipForm.courier_option === OTHER_COURIER && (
+                  <Input
+                    placeholder="Enter courier name"
+                    value={shipForm.courier_custom}
+                    onChange={(e) =>
+                      setShipForm((prev) => ({ ...prev, courier_custom: e.target.value }))
+                    }
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tracking_number">Tracking / AWB *</Label>
