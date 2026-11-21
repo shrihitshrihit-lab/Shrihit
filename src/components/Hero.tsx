@@ -73,7 +73,7 @@ const Hero = () => {
           >
             {[
               "100% Authentic",
-              "Free Shipping ₹499+",
+              "Free Shipping ₹600+",
               "Secure Checkout",
             ].map((badge) => (
               <div key={badge} className="flex items-center gap-2">

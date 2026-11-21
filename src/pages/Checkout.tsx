@@ -40,8 +40,8 @@ const Checkout = () => {
     pincode: "",
   });
 
-  const shippingThreshold = storeSettings?.free_shipping_threshold ?? 999;
-  const shippingCost = storeSettings?.shipping_cost ?? 99;
+  const shippingThreshold = storeSettings?.free_shipping_threshold ?? 600;
+  const shippingCost = storeSettings?.shipping_cost ?? 80;
   // Shipping is waived only when every item ships free, so adding one
   // free-shipping product cannot make an entire mixed cart ship free.
   const allItemsShipFree = items.length > 0 && items.every((item) => item.freeShipping);

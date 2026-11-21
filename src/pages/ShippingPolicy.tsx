@@ -25,9 +25,9 @@ const ShippingPolicy = () => (
     <section>
       <h2 className="font-display text-xl font-semibold mb-2">Shipping charges</h2>
       <p>
-        Shipping charges, where applicable, are shown at checkout before you pay.
-        Selected products are marked as free shipping, and orders above the free
-        shipping threshold shown at checkout ship at no extra cost.
+        Orders of ₹600 and above ship free. Orders below ₹600 have a flat shipping
+        charge of ₹80, added to the total at checkout. Selected products marked as
+        free shipping also ship at no extra cost when every item in the order qualifies.
       </p>
     </section>
 
