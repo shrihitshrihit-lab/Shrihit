@@ -107,8 +107,8 @@ const resolveAmountInPaise = async (orderNumber: string): Promise<number> => {
         | undefined)
     : undefined;
 
-  const shippingCost = Number(settings?.shipping_cost ?? 99);
-  const freeShippingThreshold = Number(settings?.free_shipping_threshold ?? 999);
+  const shippingCost = Number(settings?.shipping_cost ?? 80);
+  const freeShippingThreshold = Number(settings?.free_shipping_threshold ?? 600);
   const shipping =
     everyItemShipsFree || itemsTotal >= freeShippingThreshold ? 0 : shippingCost;
 

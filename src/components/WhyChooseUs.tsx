@@ -10,7 +10,7 @@ const features = [
   {
     icon: Truck,
     title: "Pan-India Delivery",
-    description: "Fast & secure shipping across India. Free delivery on orders above ₹499.",
+    description: "Fast & secure shipping across India. Free delivery on orders of ₹600 and above.",
   },
   {
     icon: Shield,
