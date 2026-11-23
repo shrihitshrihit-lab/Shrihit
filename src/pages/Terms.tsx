@@ -47,8 +47,8 @@ const Terms = () => (
       <h2 className="font-display text-xl font-semibold mb-2">Contact</h2>
       <p>
         Questions about these terms? Write to{" "}
-        <a href="mailto:namaste@shrihit.in" className="text-primary hover:underline">
-          namaste@shrihit.in
+        <a href="mailto:Shrihit02@gmail.com" className="text-primary hover:underline">
+          Shrihit02@gmail.com
         </a>
         .
       </p>

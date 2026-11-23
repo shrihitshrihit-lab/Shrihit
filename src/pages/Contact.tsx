@@ -5,10 +5,10 @@ import { useStoreSettings } from "@/hooks/useStoreSettings";
 const Contact = () => {
   const { data: settings } = useStoreSettings();
 
-  const email = settings?.email || "namaste@shrihit.in";
-  const phone = settings?.phone || "+91 98765 43210";
-  const address = settings?.address || "Moradabad, Uttar Pradesh, India";
-  const whatsapp = (settings?.whatsapp_number || "+919876543210").replace(/[^0-9]/g, "");
+  const email = settings?.email || "Shrihit02@gmail.com";
+  const phone = settings?.phone || "7988140173";
+  const address = settings?.address || "613, Jundla Gate, Karnal, Haryana";
+  const whatsapp = (settings?.whatsapp_number || "+917988140173").replace(/[^0-9]/g, "");
 
   return (
     <PolicyPage
