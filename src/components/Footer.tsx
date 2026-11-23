@@ -187,17 +187,15 @@ const Footer = () => {
           <p className="font-body text-sm text-background/50">
             © 2024 Shrihit. All rights reserved. Made with 🙏 in India.
           </p>
-          <div className="flex items-center gap-4">
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Stripe_Logo%2C_revised_2016.svg/512px-Stripe_Logo%2C_revised_2016.svg.png"
-              alt="Stripe"
-              className="h-6 opacity-50"
-            />
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/512px-PayPal.svg.png"
-              alt="PayPal"
-              className="h-5 opacity-50"
-            />
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {["UPI", "Cards", "Net Banking", "Wallets"].map((method) => (
+              <span
+                key={method}
+                className="font-body text-xs text-background/60 border border-background/20 px-2.5 py-1 rounded"
+              >
+                {method}
+              </span>
+            ))}
           </div>
         </div>
       </div>
