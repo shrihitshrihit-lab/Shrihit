@@ -54,8 +54,8 @@ class ErrorBoundary extends Component<Props, State> {
           </div>
           <p className="mt-8 text-sm text-muted-foreground">
             Still stuck? Write to{" "}
-            <a href="mailto:namaste@shrihit.in" className="text-primary hover:underline">
-              namaste@shrihit.in
+            <a href="mailto:Shrihit02@gmail.com" className="text-primary hover:underline">
+              Shrihit02@gmail.com
             </a>
           </p>
         </div>

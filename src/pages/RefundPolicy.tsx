@@ -43,8 +43,8 @@ const RefundPolicy = () => (
       <h2 className="font-display text-xl font-semibold mb-2">How to raise a request</h2>
       <p>
         Email{" "}
-        <a href="mailto:namaste@shrihit.in" className="text-primary hover:underline">
-          namaste@shrihit.in
+        <a href="mailto:Shrihit02@gmail.com" className="text-primary hover:underline">
+          Shrihit02@gmail.com
         </a>{" "}
         with your order number and a short description of the issue. We reply to
         every request, usually within two working days.

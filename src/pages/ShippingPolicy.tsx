@@ -39,8 +39,8 @@ const ShippingPolicy = () => (
           My Account
         </a>
         . For tracking help, write to us at{" "}
-        <a href="mailto:namaste@shrihit.in" className="text-primary hover:underline">
-          namaste@shrihit.in
+        <a href="mailto:Shrihit02@gmail.com" className="text-primary hover:underline">
+          Shrihit02@gmail.com
         </a>
         .
       </p>

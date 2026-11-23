@@ -167,9 +167,9 @@ const PrivacyPolicy = () => {
                     If you have any questions about this Privacy Policy, please contact us at:
                   </p>
                   <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-                    <p><strong>Email:</strong> privacy@shrihit.com</p>
-                    <p><strong>Phone:</strong> +91 98765 43210</p>
-                    <p><strong>Address:</strong> Shrihit Pvt Ltd, Mumbai, Maharashtra, India</p>
+                    <p><strong>Email:</strong> Shrihit02@gmail.com</p>
+                    <p><strong>Phone:</strong> 7988140173</p>
+                    <p><strong>Address:</strong> 613, Jundla Gate, Karnal, Haryana</p>
                   </div>
                 </section>
               </div>

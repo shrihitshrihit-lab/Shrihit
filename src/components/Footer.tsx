@@ -157,25 +157,25 @@ const Footer = () => {
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="text-primary mt-0.5 flex-shrink-0" />
                 <span className="font-body text-sm text-background/70">
-                  123 Spiritual Lane, Jaipur, Rajasthan 302001
+                  613, Jundla Gate, Karnal, Haryana
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={18} className="text-primary flex-shrink-0" />
                 <a
-                  href="tel:+919876543210"
+                  href="tel:+917988140173"
                   className="font-body text-sm text-background/70 hover:text-primary transition-colors"
                 >
-                  +91 98765 43210
+                  7988140173
                 </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail size={18} className="text-primary flex-shrink-0" />
                 <a
-                  href="mailto:namaste@shrihit.in"
+                  href="mailto:Shrihit02@gmail.com"
                   className="font-body text-sm text-background/70 hover:text-primary transition-colors"
                 >
-                  namaste@shrihit.in
+                  Shrihit02@gmail.com
                 </a>
               </li>
             </ul>
